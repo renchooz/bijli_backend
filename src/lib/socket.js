@@ -1,53 +1,53 @@
-import express from 'express';
-import http from 'http';
-import { Server } from 'socket.io';
+// src/lib/socket.js
+import express from "express";
+import http from "http";
+import { Server } from "socket.io";
 
-const app = express();
-const server = http.createServer(app);
+export const app = express();
+export const server = http.createServer(app);
 
-const io = new Server(server, {
+export const io = new Server(server, {
   cors: {
-   origin: ["http://localhost:5173", "https://spiffy-brigadeiros-344677.netlify.app"],
-    credentials: true,
-  },
+    origin: [
+      "http://localhost:5173",                       // dev Vite
+      "https://spiffy-brigadeiros-344677.netlify.app" // Netlify prod
+               
+    ],
+    credentials: true
+  }
 });
 
-// Track userId ↔ socketId
-const userSocketMap = new Map();   // key: userId , value: socketId
+// --- in‑memory map: userId -> socketId
+const userSocketMap = new Map();
 
 const broadcastOnline = () => {
-  io.emit('onlineUsers', Array.from(userSocketMap.keys())); // ⚡
+  io.emit("onlineUsers", Array.from(userSocketMap.keys()));
 };
 
-io.on('connection', (socket) => {
-  console.log('⚡ Client connected:', socket.id);
+io.on("connection", socket => {
+  console.log("⚡  Client connected:", socket.id);
 
-  // store mapping on login
-  socket.on('login', (userId) => {
+  socket.on("login", userId => {
     userSocketMap.set(userId, socket.id);
-    console.log(`✅ User ${userId} connected with socket ${socket.id}`);
-    broadcastOnline();                                                // ⚡
+    console.log(`✅  User ${userId} logged in on ${socket.id}`);
+    broadcastOnline();
   });
 
-  // join / leave private rooms
-  socket.on('joinRoom', (roomId) => socket.join(roomId));
-  socket.on('leaveRoom', (roomId) => socket.leave(roomId));
+  socket.on("joinRoom", roomId => socket.join(roomId));
+  socket.on("leaveRoom", roomId => socket.leave(roomId));
 
-  // relay new messages
-  socket.on('newMessage', (msg) => {
-    socket.to(msg.roomId).emit('messageFromServer', msg);
+  socket.on("newMessage", msg => {
+    socket.to(msg.roomId).emit("messageFromServer", msg);
   });
 
-  socket.on('disconnect', () => {
-    for (const [uid, sid] of userSocketMap.entries()) {
+  socket.on("disconnect", () => {
+    for (const [uid, sid] of userSocketMap) {
       if (sid === socket.id) {
         userSocketMap.delete(uid);
         break;
       }
     }
-    broadcastOnline();                                               // ⚡
-    console.log('❌ Client disconnected:', socket.id);
+    console.log("❌  Client disconnected:", socket.id);
+    broadcastOnline();
   });
 });
-
-export { app, io, server };
